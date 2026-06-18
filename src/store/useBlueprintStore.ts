@@ -57,9 +57,33 @@ function loadPersisted(): PersistedState {
     if (!raw) return defaultPersisted;
     const parsed = JSON.parse(raw) as PersistedState;
     if (!parsed.floors || !parsed.rooms) return defaultPersisted;
+
+    const fixedMarkers = parsed.gameplayMarkers ?? defaultPersisted.gameplayMarkers;
+    const gp2 = fixedMarkers.find((m) => m.id === 'gp-2' && m.type === 'key' && m.name === '铜制钥匙');
+    const gp4 = fixedMarkers.find((m) => m.id === 'gp-4' && m.type === 'door_lock' && m.name === '厨房门锁');
+    if (gp2 && gp4) {
+      if (gp2.linkedTo === 'gp-4' && gp4.linkedTo !== 'gp-2') {
+        gp4.linkedTo = 'gp-2';
+      } else if (gp4.linkedTo === 'gp-2' && gp2.linkedTo !== 'gp-4') {
+        gp2.linkedTo = 'gp-4';
+      } else if (!gp2.linkedTo && !gp4.linkedTo) {
+        gp2.linkedTo = 'gp-4';
+        gp4.linkedTo = 'gp-2';
+      }
+    }
+    fixedMarkers.forEach((m) => {
+      if ((m.type === 'key' || m.type === 'door_lock') && m.linkedTo) {
+        const other = fixedMarkers.find((o) => o.id === m.linkedTo);
+        if (other && (other.type === 'key' || other.type === 'door_lock') && other.linkedTo !== m.id) {
+          other.linkedTo = m.id;
+        }
+      }
+    });
+
     return {
       ...defaultPersisted,
       ...parsed,
+      gameplayMarkers: fixedMarkers,
       collabTasks: parsed.collabTasks ?? [],
       versions: (parsed.versions ?? []).map((v) => ({
         ...v,

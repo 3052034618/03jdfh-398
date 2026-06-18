@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useBlueprintStore } from '@/store/useBlueprintStore';
 import {
   X, Key, Lock, AlertTriangle, AlertOctagon, RefreshCcw,
   Layers, MapPin, Link2, Unlink, CheckCircle2, Users,
+  Wrench, ArrowRight, Eye,
 } from 'lucide-react';
 
 type PuzzleIssue =
@@ -19,6 +20,9 @@ const PuzzleInspector = () => {
     floors,
     showPuzzleInspector,
     setShowPuzzleInspector,
+    updateGameplayMarker,
+    selectRoom,
+    setDetailTab,
   } = useBlueprintStore();
 
   const { chains, issues, stats } = useMemo(() => {
@@ -72,6 +76,8 @@ const PuzzleInspector = () => {
       }
     }
 
+    const issuedIds = new Set<string>();
+
     for (const marker of allPairs) {
       const room = markerRoom(marker.roomId);
       const floor = room ? markerFloor(room.floorId) : undefined;
@@ -106,22 +112,29 @@ const PuzzleInspector = () => {
 
       if (target.linkedTo !== marker.id) {
         const targetRoom = markerRoom(target.roomId);
-        issues.push({
-          kind: 'asymmetric',
-          markerId: marker.id,
-          markerName: marker.name,
-          markerType: marker.type as 'key' | 'door_lock',
-          roomName: room?.name || '未知房间',
-          targetId: target.id,
-          targetName: target.name,
-          targetRoomName: targetRoom?.name || '未知房间',
-          targetPointsBack: target.linkedTo === marker.id,
-        });
+        const pairKey = [marker.id, target.id].sort().join('|');
+        if (!issuedIds.has(pairKey)) {
+          issuedIds.add(pairKey);
+          issues.push({
+            kind: 'asymmetric',
+            markerId: marker.id,
+            markerName: marker.name,
+            markerType: marker.type as 'key' | 'door_lock',
+            roomName: room?.name || '未知房间',
+            targetId: target.id,
+            targetName: target.name,
+            targetRoomName: targetRoom?.name || '未知房间',
+            targetPointsBack: target.linkedTo === marker.id,
+          });
+        }
       }
 
       if (marker.type === 'key') {
         const duplicates = (keysByTarget.get(marker.linkedTo) || []).filter((id) => id !== marker.id);
         for (const otherKeyId of duplicates) {
+          const dupKey = [marker.id, otherKeyId].sort().join('|');
+          if (issuedIds.has(dupKey)) continue;
+          issuedIds.add(dupKey);
           const otherKey = gameplayMarkers.find((m) => m.id === otherKeyId);
           const otherRoom = otherKey ? markerRoom(otherKey.roomId) : undefined;
           const targetRoom = markerRoom(target.roomId);
@@ -141,6 +154,9 @@ const PuzzleInspector = () => {
       } else {
         const duplicates = (locksByTarget.get(marker.linkedTo) || []).filter((id) => id !== marker.id);
         for (const otherLockId of duplicates) {
+          const dupKey = [marker.id, otherLockId].sort().join('|');
+          if (issuedIds.has(dupKey)) continue;
+          issuedIds.add(dupKey);
           const otherLock = gameplayMarkers.find((m) => m.id === otherLockId);
           const otherRoom = otherLock ? markerRoom(otherLock.roomId) : undefined;
           const targetRoom = markerRoom(target.roomId);
@@ -200,6 +216,27 @@ const PuzzleInspector = () => {
     };
   }, [gameplayMarkers, rooms, floors]);
 
+  const handleFix = useCallback((iss: PuzzleIssue) => {
+    switch (iss.kind) {
+      case 'dangling_ref':
+        updateGameplayMarker(iss.markerId, { linkedTo: undefined });
+        break;
+      case 'asymmetric':
+        updateGameplayMarker(iss.targetId, { linkedTo: iss.markerId });
+        break;
+      case 'duplicate_target':
+        updateGameplayMarker(iss.otherMarkerId, { linkedTo: undefined });
+        break;
+      case 'unpaired':
+        selectRoom(iss.roomId);
+        setDetailTab('gameplay');
+        setShowPuzzleInspector(false);
+        break;
+      default:
+        break;
+    }
+  }, [updateGameplayMarker, selectRoom, setDetailTab, setShowPuzzleInspector]);
+
   if (!showPuzzleInspector) return null;
 
   const IssueIcon = ({ kind }: { kind: PuzzleIssue['kind'] }) => {
@@ -241,6 +278,21 @@ const PuzzleInspector = () => {
     );
   };
 
+  const fixButtonConfig = (iss: PuzzleIssue): { label: string; className: string } | null => {
+    switch (iss.kind) {
+      case 'dangling_ref':
+        return { label: '清空无效引用', className: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/40' };
+      case 'asymmetric':
+        return { label: '补齐反向关联', className: 'bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/40' };
+      case 'duplicate_target':
+        return { label: `保留${iss.markerName}，取消${iss.otherMarkerName}`, className: 'bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/40' };
+      case 'unpaired':
+        return { label: '前往详情编辑', className: 'bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border-yellow-500/40' };
+      case 'cross_floor':
+        return null;
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
       <div className="bg-horror-surface border border-horror-border rounded-lg shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-slide-up box-shadow-glow">
@@ -251,7 +303,7 @@ const PuzzleInspector = () => {
             </div>
             <div>
               <h2 className="font-cinzel text-lg font-semibold text-white tracking-wide">解谜链路全局检查</h2>
-              <p className="text-[11px] text-horror-muted">快速找出钥匙与门锁的断链、重复和异常</p>
+              <p className="text-[11px] text-horror-muted">快速找出钥匙与门锁的断链、重复和异常，支持一键修复</p>
             </div>
           </div>
           <button
@@ -297,17 +349,18 @@ const PuzzleInspector = () => {
           {issues.length > 0 && (
             <section>
               <h3 className="text-xs font-semibold text-red-400 mb-2.5 flex items-center gap-1.5">
-                <AlertTriangle size={14} /> 问题清单（{issues.length}）
+                <AlertTriangle size={14} /> 问题清单（{issues.length}）—— 每条问题可直接修复
               </h3>
               <div className="space-y-2">
                 {issues.map((iss, idx) => {
                   const styleByKind: Record<PuzzleIssue['kind'], string> = {
-                    unpaired: 'border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/10',
-                    duplicate_target: 'border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10',
-                    cross_floor: 'border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10',
-                    dangling_ref: 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10',
-                    asymmetric: 'border-orange-600/30 bg-orange-600/5 hover:bg-orange-600/10',
+                    unpaired: 'border-yellow-500/30 bg-yellow-500/5',
+                    duplicate_target: 'border-orange-500/30 bg-orange-500/5',
+                    cross_floor: 'border-cyan-500/30 bg-cyan-500/5',
+                    dangling_ref: 'border-red-500/30 bg-red-500/5',
+                    asymmetric: 'border-orange-600/30 bg-orange-600/5',
                   };
+                  const fixCfg = fixButtonConfig(iss);
                   return (
                     <div
                       key={idx}
@@ -315,7 +368,7 @@ const PuzzleInspector = () => {
                     >
                       <div className="flex items-start gap-2.5">
                         <div className="mt-0.5"><IssueIcon kind={iss.kind} /></div>
-                        <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex-1 min-w-0 space-y-1.5">
                           {iss.kind === 'unpaired' && (
                             <>
                               <div className="text-horror-text">
@@ -344,7 +397,7 @@ const PuzzleInspector = () => {
                                 <span className="text-horror-muted">（{iss.targetRoomName}）</span>
                               </div>
                               <div className="text-[11px] text-horror-muted">
-                                {iss.markerType === 'key' ? '两把钥匙开同一扇门' : '两扇门由同一把钥匙开启'}——请确认是否为设计意图
+                                {iss.markerType === 'key' ? '两把钥匙开同一扇门' : '两扇门由同一把钥匙开启'}——点击右侧按钮可解除另一标记的配对
                               </div>
                             </>
                           )}
@@ -359,8 +412,8 @@ const PuzzleInspector = () => {
                                 <span className="text-white font-medium">{iss.targetName}</span>
                                 <span className="text-horror-muted">（{iss.targetFloorName}·{iss.targetRoomName}）</span>
                               </div>
-                              <div className="text-[11px] text-horror-muted">
-                                跨层解谜需确保玩家动线可达——若中间未解锁可能会卡关
+                              <div className="text-[11px] text-horror-muted flex items-center gap-1">
+                                <Eye size={11} /> 跨层解谜需确保玩家动线可达——若中间未解锁可能会卡关，建议设计时人工确认
                               </div>
                             </>
                           )}
@@ -374,7 +427,7 @@ const PuzzleInspector = () => {
                                 <span className="text-red-400 font-medium"> 关联对象已失效（{iss.reason}）</span>
                               </div>
                               <div className="text-[11px] text-horror-muted">
-                                需要重新为该{iss.markerType === 'key' ? '钥匙' : '门锁'}指定关联对象
+                                需要重新为该{iss.markerType === 'key' ? '钥匙' : '门锁'}指定关联对象，或先清空无效引用
                               </div>
                             </>
                           )}
@@ -391,11 +444,21 @@ const PuzzleInspector = () => {
                                 <span className="text-orange-500 font-medium">，但对方未反向指向</span>
                               </div>
                               <div className="text-[11px] text-horror-muted">
-                                数据双向不一致，编辑{iss.targetName}可自动修复，或重新编辑当前标记
+                                数据双向不一致，点击右侧按钮自动补齐反向关联
                               </div>
                             </>
                           )}
                         </div>
+                        {fixCfg && (
+                          <button
+                            onClick={() => handleFix(iss)}
+                            className={`shrink-0 self-center text-[11px] px-2 py-1 rounded border flex items-center gap-1 transition-colors ${fixCfg.className}`}
+                            title="点击自动修复"
+                          >
+                            <Wrench size={11} />
+                            {fixCfg.label}
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -439,7 +502,7 @@ const PuzzleInspector = () => {
                             <MapPin size={9} className="ml-1" /> {c.sourceRoomName}
                           </div>
                         </div>
-                        <Link2 size={14} className={`mx-1 shrink-0 ${c.target && c.targetPointsBack ? 'text-green-400' : 'text-orange-400'}`} />
+                        <ArrowRight size={14} className={`mx-1 shrink-0 ${c.target && c.targetPointsBack ? 'text-green-400' : 'text-orange-400'}`} />
                         {c.target ? (
                           <>
                             {targetIcon}
@@ -469,7 +532,7 @@ const PuzzleInspector = () => {
         </div>
 
         <div className="px-5 py-2.5 border-t border-horror-border bg-horror-surface2/40 shrink-0 flex items-center justify-between text-[11px] text-horror-muted">
-          <span>修正问题后可点击房间中的钥匙/门锁标记编辑关联关系</span>
+          <span>绿色卡片=双向有效链路；跨楼层问题需人工确认动线，其余问题点按钮即可修复</span>
           <button
             onClick={() => setShowPuzzleInspector(false)}
             className="horror-btn-primary text-xs py-1 px-3 flex items-center gap-1"

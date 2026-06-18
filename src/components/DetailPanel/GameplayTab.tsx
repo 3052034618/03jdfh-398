@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { GameplayMarker, GameplayMarkerType } from '@/types';
 import { useBlueprintStore } from '@/store/useBlueprintStore';
-import { Plus, Trash2, Edit2, Check, X, Lock, Key, Zap, Shield, Link, Volume2, Ruler, Gauge, Repeat } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Lock, Key, Zap, Shield, Link, Volume2, Ruler, Gauge, Repeat, AlertTriangle } from 'lucide-react';
 
 interface GameplayTabProps {
   roomId: string;
@@ -44,9 +44,21 @@ const GameplayTab = ({ roomId }: GameplayTabProps) => {
       .filter((m) => m.type === targetType && m.id !== excludeId)
       .map((m) => {
         const room = rooms.find((r) => r.id === m.roomId);
+        const claimedBy = gameplayMarkers.find(
+          (o) => o.id !== excludeId && o.linkedTo === m.id
+        );
+        let claimedByName = '';
+        if (claimedBy) {
+          const r = rooms.find((rr) => rr.id === claimedBy.roomId);
+          claimedByName = `${r?.name || '?'}·${claimedBy.name}`;
+        }
         return {
           id: m.id,
-          label: `${room?.name || '未知房间'} · ${m.name}`,
+          label: `${room?.name || '未知房间'} · ${m.name}${claimedByName ? `  ⚠已被${claimedByName}占用` : ''}`,
+          plainLabel: `${room?.name || '未知房间'} · ${m.name}`,
+          marker: m,
+          claimedBy,
+          claimedByName,
         };
       });
   };
@@ -140,11 +152,15 @@ const GameplayTab = ({ roomId }: GameplayTabProps) => {
     const options = getMarkersForLinking(type, markerId);
     const showLinker = type === 'key' || type === 'door_lock';
     if (!showLinker) return null;
+    const selectedOpt = value ? options.find((o) => o.id === value) : null;
+    const willDisplace =
+      selectedOpt?.claimedBy &&
+      selectedOpt.claimedBy.id !== markerId;
     return (
       <div>
         <label className="text-xs text-horror-muted flex items-center gap-1 mb-1">
           <Link size={10} className="text-cyan-400" />
-          {type === 'key' ? '关联的门锁' : '关联的钥匙'}
+          {type === 'key' ? '关联的门锁（已占用会自动挪开）' : '关联的钥匙（已占用会自动挪开）'}
         </label>
         <select
           className="horror-input text-xs py-1 w-full"
@@ -153,9 +169,25 @@ const GameplayTab = ({ roomId }: GameplayTabProps) => {
         >
           <option value="">—— 暂不关联 ——</option>
           {options.map((opt) => (
-            <option key={opt.id} value={opt.id}>{opt.label}</option>
+            <option
+              key={opt.id}
+              value={opt.id}
+              className={opt.claimedBy ? 'text-orange-300' : ''}
+            >
+              {opt.label}
+            </option>
           ))}
         </select>
+        {willDisplace && (
+          <div className="mt-1.5 rounded border border-orange-500/40 bg-orange-500/10 px-2 py-1.5 text-[11px] text-orange-300 flex items-start gap-1">
+            <AlertTriangle size={11} className="mt-0.5 shrink-0 text-orange-400" />
+            <span>
+              该{type === 'key' ? '门锁' : '钥匙'}当前由
+              <span className="text-white font-medium mx-1">{selectedOpt!.claimedByName}</span>
+              占用，保存后将自动解除其关联。刷新后双方卡片同步更新。
+            </span>
+          </div>
+        )}
         {options.length === 0 && (
           <p className="text-[10px] text-horror-muted mt-1 opacity-70">
             （请先在其他房间创建{type === 'key' ? '门锁' : '钥匙'}标记）
