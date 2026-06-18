@@ -3,11 +3,13 @@ import { useMemo, useState } from 'react';
 import {
   BookOpen, Gamepad2, Volume2, Edit2, Check, X, Save,
   Trash2, AlertTriangle, Key, Lock, Link2, Map,
+  ClipboardList,
 } from 'lucide-react';
 import type { RoomStatus, GameplayMarker } from '@/types';
 import StoryTab from './StoryTab';
 import GameplayTab from './GameplayTab';
 import AudioTab from './AudioTab';
+import CollabTab from './CollabTab';
 
 const statusOptions: { value: RoomStatus; label: string }[] = [
   { value: 'normal', label: '普通' },
@@ -20,6 +22,7 @@ const tabs = [
   { key: 'story', label: '剧情', icon: <BookOpen size={14} /> },
   { key: 'gameplay', label: '玩法', icon: <Gamepad2 size={14} /> },
   { key: 'audio', label: '音效', icon: <Volume2 size={14} /> },
+  { key: 'collab', label: '协作', icon: <ClipboardList size={14} /> },
 ] as const;
 
 const DetailPanel = () => {
@@ -324,6 +327,7 @@ const DetailPanel = () => {
         {detailTab === 'story' && <StoryTab roomId={room.id} />}
         {detailTab === 'gameplay' && <GameplayTab roomId={room.id} />}
         {detailTab === 'audio' && <AudioTab roomId={room.id} />}
+        {detailTab === 'collab' && <CollabTab roomId={room.id} />}
       </div>
     </div>
   );

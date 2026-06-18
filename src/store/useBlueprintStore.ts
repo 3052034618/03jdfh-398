@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BlueprintStore, Room, RoomStatus } from '@/types';
+import type { BlueprintStore, Room, RoomStatus, CollabTask, VersionChangeStats } from '@/types';
 import {
   mockFloors,
   mockRooms,
@@ -11,7 +11,7 @@ import {
 } from '@/data/mockData';
 import { generateId, formatNow } from '@/utils/diff';
 
-const STORAGE_KEY = 'haunted-blueprint-state-v1';
+const STORAGE_KEY = 'haunted-blueprint-state-v2';
 
 type PersistedState = {
   floors: BlueprintStore['floors'];
@@ -19,6 +19,7 @@ type PersistedState = {
   storyNodes: BlueprintStore['storyNodes'];
   gameplayMarkers: BlueprintStore['gameplayMarkers'];
   audioNodes: BlueprintStore['audioNodes'];
+  collabTasks: BlueprintStore['collabTasks'];
   comments: BlueprintStore['comments'];
   versions: BlueprintStore['versions'];
   currentFloorId: BlueprintStore['currentFloorId'];
@@ -30,8 +31,13 @@ const defaultPersisted: PersistedState = {
   storyNodes: mockStoryNodes,
   gameplayMarkers: mockGameplayMarkers,
   audioNodes: mockAudioNodes,
+  collabTasks: [],
   comments: mockComments,
-  versions: mockVersions,
+  versions: mockVersions.map((v) => ({
+    ...v,
+    changeStats: { roomInfo: 1, storyNodes: 0, gameplayMarkers: 0, audioNodes: 0, collabTasks: 0 },
+    snapshot: { ...v.snapshot, collabTasks: [] },
+  })),
   currentFloorId: 'floor-1',
 };
 
@@ -41,7 +47,16 @@ function loadPersisted(): PersistedState {
     if (!raw) return defaultPersisted;
     const parsed = JSON.parse(raw) as PersistedState;
     if (!parsed.floors || !parsed.rooms) return defaultPersisted;
-    return parsed;
+    return {
+      ...defaultPersisted,
+      ...parsed,
+      collabTasks: parsed.collabTasks ?? [],
+      versions: (parsed.versions ?? []).map((v) => ({
+        ...v,
+        changeStats: v.changeStats ?? { roomInfo: 1, storyNodes: 0, gameplayMarkers: 0, audioNodes: 0, collabTasks: 0 },
+        snapshot: { ...v.snapshot, collabTasks: v.snapshot.collabTasks ?? [] },
+      })),
+    };
   } catch {
     return defaultPersisted;
   }
@@ -55,6 +70,7 @@ function savePersisted(state: BlueprintStore) {
       storyNodes: state.storyNodes,
       gameplayMarkers: state.gameplayMarkers,
       audioNodes: state.audioNodes,
+      collabTasks: state.collabTasks,
       comments: state.comments,
       versions: state.versions,
       currentFloorId: state.currentFloorId,
@@ -63,6 +79,30 @@ function savePersisted(state: BlueprintStore) {
   } catch {
     // ignore
   }
+}
+
+function computeChangeStats(
+  prev: { name: string; status: RoomStatus; description: string; storyLen: number; markerLen: number; audioLen: number; taskLen: number } | null,
+  curr: { name: string; status: RoomStatus; description: string; storyLen: number; markerLen: number; audioLen: number; taskLen: number },
+): VersionChangeStats {
+  if (!prev) {
+    return {
+      roomInfo: curr.name || curr.status || curr.description ? 1 : 0,
+      storyNodes: curr.storyLen,
+      gameplayMarkers: curr.markerLen,
+      audioNodes: curr.audioLen,
+      collabTasks: curr.taskLen,
+    };
+  }
+  const roomInfoChanged =
+    prev.name !== curr.name || prev.status !== curr.status || prev.description !== curr.description;
+  return {
+    roomInfo: roomInfoChanged ? 1 : 0,
+    storyNodes: Math.abs(curr.storyLen - prev.storyLen),
+    gameplayMarkers: Math.abs(curr.markerLen - prev.markerLen),
+    audioNodes: Math.abs(curr.audioLen - prev.audioLen),
+    collabTasks: Math.abs(curr.taskLen - prev.taskLen),
+  };
 }
 
 export const useBlueprintStore = create<BlueprintStore>((set, get) => {
@@ -74,6 +114,7 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
     storyNodes: initial.storyNodes,
     gameplayMarkers: initial.gameplayMarkers,
     audioNodes: initial.audioNodes,
+    collabTasks: initial.collabTasks,
     comments: initial.comments,
     versions: initial.versions,
     currentFloorId: initial.currentFloorId,
@@ -86,6 +127,7 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
     connectingFromRoomId: null,
     showAddFloorModal: false,
     showAddRoomModal: false,
+    showPuzzleInspector: false,
 
     hydrateFromStorage: () => {
       const loaded = loadPersisted();
@@ -95,6 +137,7 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
         storyNodes: loaded.storyNodes,
         gameplayMarkers: loaded.gameplayMarkers,
         audioNodes: loaded.audioNodes,
+        collabTasks: loaded.collabTasks,
         comments: loaded.comments,
         versions: loaded.versions,
         currentFloorId: loaded.currentFloorId,
@@ -124,6 +167,9 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
     toggleReviewPanel: () => set((state) => ({ reviewPanelOpen: !state.reviewPanelOpen })),
 
     setReviewPanelOpen: (open) => set({ reviewPanelOpen: open }),
+
+    togglePuzzleInspector: () => set((s) => ({ showPuzzleInspector: !s.showPuzzleInspector })),
+    setShowPuzzleInspector: (show) => set({ showPuzzleInspector: show }),
 
     addFloor: (name, floorLevel) => {
       const id = generateId('floor');
@@ -157,6 +203,7 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
         storyNodes: state.storyNodes.filter((n) => n.roomId !== roomId),
         gameplayMarkers: state.gameplayMarkers.filter((m) => m.roomId !== roomId),
         audioNodes: state.audioNodes.filter((a) => a.roomId !== roomId),
+        collabTasks: state.collabTasks.filter((t) => t.roomId !== roomId),
         comments: state.comments.filter((c) => c.roomId !== roomId),
         versions: state.versions.filter((v) => v.roomId !== roomId),
         selectedRoomId: state.selectedRoomId === roomId ? null : state.selectedRoomId,
@@ -251,24 +298,28 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
     updateGameplayMarker: (markerId, updates) => {
       set((state) => {
         const old = state.gameplayMarkers.find((m) => m.id === markerId);
-        const oldLinked = old?.linkedTo;
+        if (!old) return state;
+
+        const oldLinked = old.linkedTo;
+        const updatingLink = 'linkedTo' in updates;
         const newLinked = updates.linkedTo;
 
         let nextMarkers = state.gameplayMarkers.map((m) =>
           m.id === markerId ? { ...m, ...updates } : m
         );
 
-        if (newLinked !== undefined && newLinked !== oldLinked) {
+        if (updatingLink && newLinked !== oldLinked) {
           nextMarkers = nextMarkers.map((m) => {
+            let out = m;
             if (oldLinked && m.id === oldLinked && m.linkedTo === markerId) {
-              const { linkedTo: _removed, ...rest } = m;
+              const { linkedTo: _removed, ...rest } = out;
               void _removed;
-              return rest as typeof m;
+              out = rest as typeof out;
             }
             if (newLinked && m.id === newLinked) {
-              return { ...m, linkedTo: markerId };
+              out = { ...out, linkedTo: markerId };
             }
-            return m;
+            return out;
           });
         }
 
@@ -280,42 +331,33 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
     removeGameplayMarker: (markerId) => {
       set((state) => {
         const target = state.gameplayMarkers.find((m) => m.id === markerId);
+        const nextMarkers = state.gameplayMarkers
+          .filter((m) => m.id !== markerId)
+          .map((m) => {
+            if (m.linkedTo === markerId) {
+              const { linkedTo: _r, ...rest } = m;
+              void _r;
+              return rest as typeof m;
+            }
+            return m;
+          });
+        const finalMarkers = target?.linkedTo
+          ? nextMarkers.map((m) => {
+              if (m.id === target.linkedTo && m.linkedTo === markerId) {
+                const { linkedTo: _r2, ...rest2 } = m;
+                void _r2;
+                return rest2 as typeof m;
+              }
+              return m;
+            })
+          : nextMarkers;
         return {
-          gameplayMarkers: state.gameplayMarkers
-            .filter((m) => m.id !== markerId)
-            .map((m) =>
-              m.linkedTo === markerId
-                ? (() => {
-                    const { linkedTo: _rm, ...rest } = m;
-                    void _rm;
-                    return rest as typeof m;
-                  })()
-                : m
-            ),
+          gameplayMarkers: finalMarkers,
           audioNodes: state.audioNodes.map((a) =>
             a.attachedTo?.type === 'gameplay' && a.attachedTo.id === markerId
               ? { ...a, attachedTo: null }
               : a
           ),
-          ...(target?.linkedTo
-            ? {
-                gameplayMarkers: state.gameplayMarkers
-                  .filter((m) => m.id !== markerId)
-                  .map((m) => {
-                    if (m.id === target.linkedTo && m.linkedTo === markerId) {
-                      const { linkedTo: _r, ...rest } = m;
-                      void _r;
-                      return rest as typeof m;
-                    }
-                    if (m.linkedTo === markerId) {
-                      const { linkedTo: _r2, ...rest2 } = m;
-                      void _r2;
-                      return rest2 as typeof m;
-                    }
-                    return m;
-                  }),
-              }
-            : {}),
         };
       });
       savePersisted(get());
@@ -347,6 +389,60 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
       savePersisted(get());
     },
 
+    addCollabTask: (roomId, task) => {
+      const now = formatNow();
+      const newTask: CollabTask = {
+        ...task,
+        id: generateId('task'),
+        roomId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      set((s) => ({
+        collabTasks: [...s.collabTasks, newTask],
+        reviewPanelOpen: true,
+      }));
+      savePersisted(get());
+    },
+
+    updateCollabTask: (taskId, updates) => {
+      const now = formatNow();
+      set((s) => {
+        const old = s.collabTasks.find((t) => t.id === taskId);
+        const finalUpdates: Partial<CollabTask> = { ...updates, updatedAt: now };
+        if (
+          updates.status === 'done' &&
+          old?.status !== 'done' &&
+          !old?.closedAt
+        ) {
+          finalUpdates.closedAt = now;
+        }
+        if (
+          updates.status &&
+          updates.status !== 'done' &&
+          old?.closedAt
+        ) {
+          const { closedAt: _rm, ...rest } = finalUpdates;
+          void _rm;
+          Object.assign(finalUpdates, rest);
+        }
+        return {
+          collabTasks: s.collabTasks.map((t) =>
+            t.id === taskId ? { ...t, ...finalUpdates } : t
+          ),
+          reviewPanelOpen: true,
+        };
+      });
+      savePersisted(get());
+    },
+
+    removeCollabTask: (taskId) => {
+      set((s) => ({
+        collabTasks: s.collabTasks.filter((t) => t.id !== taskId),
+      }));
+      savePersisted(get());
+    },
+
     addComment: (roomId, comment) => {
       set((state) => ({
         comments: [
@@ -366,11 +462,39 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
       const roomStory = state.storyNodes.filter((n) => n.roomId === roomId);
       const roomMarkers = state.gameplayMarkers.filter((m) => m.roomId === roomId);
       const roomAudio = state.audioNodes.filter((a) => a.roomId === roomId);
+      const roomTasks = state.collabTasks.filter((t) => t.roomId === roomId);
       const existingVersions = state.versions.filter((v) => v.roomId === roomId);
       const nextNumber =
         existingVersions.length > 0
           ? Math.max(...existingVersions.map((v) => v.versionNumber)) + 1
           : 1;
+
+      const sortedVersions = [...existingVersions].sort(
+        (a, b) => b.versionNumber - a.versionNumber
+      );
+      const latest = sortedVersions[0];
+
+      const currSummary = {
+        name: room.name,
+        status: room.status as RoomStatus,
+        description: room.description,
+        storyLen: roomStory.length,
+        markerLen: roomMarkers.length,
+        audioLen: roomAudio.length,
+        taskLen: roomTasks.length,
+      };
+      const prevSummary = latest
+        ? {
+            name: latest.snapshot.name,
+            status: latest.snapshot.status,
+            description: latest.snapshot.description,
+            storyLen: latest.snapshot.storyNodes.length,
+            markerLen: latest.snapshot.gameplayMarkers.length,
+            audioLen: latest.snapshot.audioNodes.length,
+            taskLen: latest.snapshot.collabTasks?.length ?? 0,
+          }
+        : null;
+      const changeStats: VersionChangeStats = computeChangeStats(prevSummary, currSummary);
 
       const newVersion = {
         id: generateId('v'),
@@ -383,8 +507,10 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
           storyNodes: JSON.parse(JSON.stringify(roomStory)),
           gameplayMarkers: JSON.parse(JSON.stringify(roomMarkers)),
           audioNodes: JSON.parse(JSON.stringify(roomAudio)),
+          collabTasks: JSON.parse(JSON.stringify(roomTasks)),
         },
         changeReason: reason,
+        changeStats,
         author,
         timestamp: formatNow(),
       };

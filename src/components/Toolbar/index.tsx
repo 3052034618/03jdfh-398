@@ -14,6 +14,7 @@ import {
   Link2,
   Link2Off,
   SquarePlus,
+  Key,
 } from 'lucide-react';
 
 const Toolbar = () => {
@@ -29,6 +30,8 @@ const Toolbar = () => {
     setConnectingFrom,
     setShowAddFloorModal,
     setShowAddRoomModal,
+    showPuzzleInspector,
+    togglePuzzleInspector,
   } = useBlueprintStore();
 
   const isConnectMode = connectingFromRoomId !== null;
@@ -117,6 +120,20 @@ const Toolbar = () => {
         {isConnectMode && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
         )}
+      </button>
+
+      <button
+        onClick={togglePuzzleInspector}
+        className={`
+          w-10 h-10 flex items-center justify-center rounded-lg transition-all relative group
+          ${showPuzzleInspector
+            ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/40'
+            : 'text-horror-muted hover:text-yellow-400 hover:bg-yellow-500/10'
+          }
+        `}
+        title="解谜链路全局检查（钥匙/门锁配对、断链、重复、跨层）"
+      >
+        <Key size={18} />
       </button>
 
       <div className="flex-1" />

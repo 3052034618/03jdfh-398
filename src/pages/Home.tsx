@@ -4,6 +4,7 @@ import Toolbar from '@/components/Toolbar';
 import BlueprintCanvas from '@/components/BlueprintCanvas';
 import DetailPanel from '@/components/DetailPanel';
 import ReviewPanel from '@/components/ReviewPanel';
+import PuzzleInspector from '@/components/PuzzleInspector';
 import Modal from '@/components/ui/Modal';
 import { useBlueprintStore } from '@/store/useBlueprintStore';
 import type { RoomStatus } from '@/types';
@@ -225,6 +226,8 @@ const Home = () => {
           )}
         </div>
       </Modal>
+
+      <PuzzleInspector />
     </div>
   );
 };

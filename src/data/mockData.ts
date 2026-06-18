@@ -445,6 +445,7 @@ export const mockVersions: Version[] = [
     changeReason: '初始版本：普通卧室',
     author: '老张',
     timestamp: '2026-06-10 14:00',
+    changeStats: { roomInfo: 1, storyNodes: 1, gameplayMarkers: 0, audioNodes: 0, collabTasks: 0 },
     snapshot: {
       name: '主卧室',
       status: 'normal',
@@ -459,6 +460,7 @@ export const mockVersions: Version[] = [
       ],
       gameplayMarkers: [],
       audioNodes: [],
+      collabTasks: [],
     },
   },
   {
@@ -468,6 +470,7 @@ export const mockVersions: Version[] = [
     changeReason: '增加基础叙事元素',
     author: '小林',
     timestamp: '2026-06-12 10:30',
+    changeStats: { roomInfo: 1, storyNodes: 1, gameplayMarkers: 0, audioNodes: 0, collabTasks: 0 },
     snapshot: {
       name: '主卧室',
       status: 'explorable',
@@ -488,6 +491,7 @@ export const mockVersions: Version[] = [
       ],
       gameplayMarkers: [],
       audioNodes: [],
+      collabTasks: [],
     },
   },
   {
@@ -497,6 +501,7 @@ export const mockVersions: Version[] = [
     changeReason: '重设计：改为母亲怨灵记忆点（见评论#5）',
     author: '小林',
     timestamp: '2026-06-16 09:00',
+    changeStats: { roomInfo: 1, storyNodes: 1, gameplayMarkers: 2, audioNodes: 2, collabTasks: 0 },
     snapshot: {
       name: '主卧室',
       status: 'explorable',
@@ -558,6 +563,7 @@ export const mockVersions: Version[] = [
           description: '靠近镜子时触发，镜中倒影发出一声悠长的叹息。',
         },
       ],
+      collabTasks: [],
     },
   },
 ];

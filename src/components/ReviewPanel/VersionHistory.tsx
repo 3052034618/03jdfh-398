@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useBlueprintStore } from '@/store/useBlueprintStore';
-import { Clock, GitCompare, X, ArrowRight, User } from 'lucide-react';
+import {
+  Clock, GitCompare, X, ArrowRight, User,
+  Home, BookOpen, Gamepad2, Volume2, ClipboardList,
+} from 'lucide-react';
 import { computeDiff } from '@/utils/diff';
 
 interface VersionHistoryProps {
@@ -34,6 +37,21 @@ const VersionHistory = ({ roomId }: VersionHistoryProps) => {
     });
     setCompareVersionIds([v1, v2]);
     setSelectedForCompare(null);
+  };
+
+  const ChangeBadge = ({
+    icon, value, color, label,
+  }: { icon: React.ReactNode; value: number; color: string; label: string }) => {
+    if (value === 0) return null;
+    return (
+      <span
+        title={`${label} 变更 ${value} 项`}
+        className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border ${color}`}
+      >
+        {icon}
+        {value > 0 ? `+${value}` : value}
+      </span>
+    );
   };
 
   if (!roomId) {
@@ -81,6 +99,7 @@ const VersionHistory = ({ roomId }: VersionHistoryProps) => {
         {roomVersions.map((version, idx) => {
           const isSelected = selectedForCompare === version.id;
           const isInComparePair = compareVersionIds?.includes(version.id);
+          const s = version.changeStats;
 
           return (
             <div
@@ -119,7 +138,8 @@ const VersionHistory = ({ roomId }: VersionHistoryProps) => {
                       {isSelected ? '已选' : '对比'}
                     </button>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-horror-muted">
+
+                  <div className="flex items-center gap-3 text-xs text-horror-muted mb-2">
                     <span className="flex items-center gap-1">
                       <User size={10} /> {version.author}
                     </span>
@@ -127,6 +147,44 @@ const VersionHistory = ({ roomId }: VersionHistoryProps) => {
                       <Clock size={10} /> {version.timestamp}
                     </span>
                   </div>
+
+                  {(s.roomInfo || s.storyNodes || s.gameplayMarkers || s.audioNodes || s.collabTasks) && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <ChangeBadge
+                        icon={<Home size={9} />}
+                        value={s.roomInfo}
+                        color="border-green-500/30 text-green-400 bg-green-500/10"
+                        label="房间信息"
+                      />
+                      <ChangeBadge
+                        icon={<BookOpen size={9} />}
+                        value={s.storyNodes}
+                        color="border-blue-500/30 text-blue-400 bg-blue-500/10"
+                        label="剧情节点"
+                      />
+                      <ChangeBadge
+                        icon={<Gamepad2 size={9} />}
+                        value={s.gameplayMarkers}
+                        color="border-orange-500/30 text-orange-400 bg-orange-500/10"
+                        label="玩法标记"
+                      />
+                      <ChangeBadge
+                        icon={<Volume2 size={9} />}
+                        value={s.audioNodes}
+                        color="border-purple-500/30 text-purple-400 bg-purple-500/10"
+                        label="音效挂载"
+                      />
+                      <ChangeBadge
+                        icon={<ClipboardList size={9} />}
+                        value={s.collabTasks}
+                        color="border-cyan-500/30 text-cyan-400 bg-cyan-500/10"
+                        label="协作任务"
+                      />
+                      {s.roomInfo + s.storyNodes + s.gameplayMarkers + s.audioNodes + s.collabTasks === 0 && (
+                        <span className="text-[10px] text-horror-muted opacity-70">（无实质内容变更）</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

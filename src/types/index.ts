@@ -6,9 +6,35 @@ export type GameplayMarkerType = 'door_lock' | 'key' | 'chase_trigger' | 'hiding
 
 export type ReviewTab = 'comments' | 'versions' | 'review';
 
-export type DetailTab = 'story' | 'gameplay' | 'audio';
+export type DetailTab = 'story' | 'gameplay' | 'audio' | 'collab';
 
 export type AudioAttachTarget = { type: 'story' | 'gameplay'; id: string } | null;
+
+export type CollabTaskType = 'story_pending' | 'audio_pending' | 'gameplay_conflict' | 'review_pending';
+export type CollabRole = 'writer' | 'sound_designer' | 'level_designer' | 'producer';
+export type CollabTaskStatus = 'todo' | 'doing' | 'done';
+
+export interface CollabTask {
+  id: string;
+  roomId: string;
+  type: CollabTaskType;
+  title: string;
+  description: string;
+  assigneeRole: CollabRole;
+  status: CollabTaskStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string;
+}
+
+export interface VersionChangeStats {
+  roomInfo: number;
+  storyNodes: number;
+  gameplayMarkers: number;
+  audioNodes: number;
+  collabTasks: number;
+}
 
 export interface Floor {
   id: string;
@@ -81,6 +107,7 @@ export interface RoomSnapshot {
   storyNodes: StoryNode[];
   gameplayMarkers: GameplayMarker[];
   audioNodes: AudioNode[];
+  collabTasks: CollabTask[];
 }
 
 export interface Version {
@@ -89,6 +116,7 @@ export interface Version {
   versionNumber: number;
   snapshot: RoomSnapshot;
   changeReason: string;
+  changeStats: VersionChangeStats;
   author: string;
   timestamp: string;
 }
@@ -105,6 +133,7 @@ export interface BlueprintState {
   storyNodes: StoryNode[];
   gameplayMarkers: GameplayMarker[];
   audioNodes: AudioNode[];
+  collabTasks: CollabTask[];
   comments: Comment[];
   versions: Version[];
   currentFloorId: string;
@@ -117,6 +146,7 @@ export interface BlueprintState {
   connectingFromRoomId: string | null;
   showAddFloorModal: boolean;
   showAddRoomModal: boolean;
+  showPuzzleInspector: boolean;
 }
 
 export interface BlueprintActions {
@@ -149,6 +179,10 @@ export interface BlueprintActions {
   updateAudioNode: (nodeId: string, updates: Partial<AudioNode>) => void;
   removeAudioNode: (nodeId: string) => void;
 
+  addCollabTask: (roomId: string, task: Omit<CollabTask, 'id' | 'roomId' | 'createdAt' | 'updatedAt'>) => void;
+  updateCollabTask: (taskId: string, updates: Partial<CollabTask>) => void;
+  removeCollabTask: (taskId: string) => void;
+
   addComment: (roomId: string, comment: Omit<Comment, 'id' | 'roomId' | 'timestamp'>) => void;
 
   createVersion: (roomId: string, reason: string, author: string) => void;
@@ -157,6 +191,8 @@ export interface BlueprintActions {
 
   setShowAddFloorModal: (show: boolean) => void;
   setShowAddRoomModal: (show: boolean) => void;
+  togglePuzzleInspector: () => void;
+  setShowPuzzleInspector: (show: boolean) => void;
 
   hydrateFromStorage: () => void;
 }
