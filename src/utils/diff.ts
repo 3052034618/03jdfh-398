@@ -1,4 +1,4 @@
-import type { DiffLine, RoomSnapshot, StoryNode, GameplayMarker, AudioNode } from '@/types';
+import type { DiffLine, RoomSnapshot, StoryNode, GameplayMarker, AudioNode, CollabTask } from '@/types';
 
 const triggerTypeMap: Record<string, string> = {
   enter: '进入时',
@@ -18,6 +18,26 @@ const statusMap: Record<string, string> = {
   explorable: '可探索',
   second_run: '二周目变化',
   normal: '普通',
+};
+
+const collabTypeMap: Record<string, string> = {
+  story_pending: '剧情待补',
+  audio_pending: '音效待配',
+  gameplay_conflict: '玩法冲突待确认',
+  review_pending: '评审待过',
+};
+
+const collabRoleMap: Record<string, string> = {
+  writer: '编剧',
+  sound_designer: '音效师',
+  level_designer: '关卡策划',
+  producer: '项目负责',
+};
+
+const collabStatusMap: Record<string, string> = {
+  todo: '待办',
+  doing: '进行中',
+  done: '已完成',
 };
 
 function formatStoryNode(node: StoryNode): string {
@@ -40,6 +60,17 @@ function formatGameplayMarker(marker: GameplayMarker): string {
 
 function formatAudioNode(node: AudioNode): string {
   return `  [${node.triggerDistance}m触发, 音量${node.volume}, ${node.loop ? '循环' : '单次'}] ${node.name}: ${node.description}`;
+}
+
+function formatCollabTask(task: CollabTask): string {
+  let result = `  [${collabTypeMap[task.type]} | ${collabRoleMap[task.assigneeRole]} | ${collabStatusMap[task.status]}] ${task.title}`;
+  if (task.description) {
+    result += ` — ${task.description}`;
+  }
+  if (task.closedAt) {
+    result += ` (完成于 ${task.closedAt})`;
+  }
+  return result;
 }
 
 export function snapshotToText(snap: RoomSnapshot): string {
@@ -67,6 +98,14 @@ export function snapshotToText(snap: RoomSnapshot): string {
     lines.push('  (无)');
   } else {
     snap.audioNodes.forEach((a) => lines.push(formatAudioNode(a)));
+  }
+  lines.push('');
+  lines.push('【协作任务】');
+  const tasks = snap.collabTasks ?? [];
+  if (tasks.length === 0) {
+    lines.push('  (无)');
+  } else {
+    tasks.forEach((t) => lines.push(formatCollabTask(t)));
   }
   return lines.join('\n');
 }

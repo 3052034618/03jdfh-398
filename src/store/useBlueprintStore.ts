@@ -1,5 +1,15 @@
 import { create } from 'zustand';
-import type { BlueprintStore, Room, RoomStatus, CollabTask, VersionChangeStats } from '@/types';
+import type {
+  BlueprintStore,
+  Room,
+  RoomStatus,
+  CollabTask,
+  VersionChangeStats,
+  RoomSnapshot,
+  StoryNode,
+  GameplayMarker,
+  AudioNode,
+} from '@/types';
 import {
   mockFloors,
   mockRooms,
@@ -81,27 +91,85 @@ function savePersisted(state: BlueprintStore) {
   }
 }
 
-function computeChangeStats(
-  prev: { name: string; status: RoomStatus; description: string; storyLen: number; markerLen: number; audioLen: number; taskLen: number } | null,
-  curr: { name: string; status: RoomStatus; description: string; storyLen: number; markerLen: number; audioLen: number; taskLen: number },
-): VersionChangeStats {
+function countArrayChanges<T extends { id: string }>(
+  prev: T[],
+  curr: T[],
+  isEqual: (a: T, b: T) => boolean,
+): number {
+  const prevMap = new Map(prev.map((p) => [p.id, p]));
+  const currMap = new Map(curr.map((c) => [c.id, c]));
+  let changes = 0;
+  for (const c of curr) {
+    if (!prevMap.has(c.id)) changes++;
+    else if (!isEqual(prevMap.get(c.id)!, c)) changes++;
+  }
+  for (const p of prev) {
+    if (!currMap.has(p.id)) changes++;
+  }
+  return changes;
+}
+
+function storyNodesEqual(a: StoryNode, b: StoryNode): boolean {
+  if (a.triggerType !== b.triggerType || a.content !== b.content) return false;
+  const aBranches = a.branches ?? [];
+  const bBranches = b.branches ?? [];
+  if (aBranches.length !== bBranches.length) return false;
+  for (let i = 0; i < aBranches.length; i++) {
+    if (aBranches[i].condition !== bBranches[i].condition || aBranches[i].content !== bBranches[i].content) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function markersEqual(a: GameplayMarker, b: GameplayMarker): boolean {
+  return (
+    a.type === b.type &&
+    a.name === b.name &&
+    a.description === b.description &&
+    (a.linkedTo ?? null) === (b.linkedTo ?? null)
+  );
+}
+
+function audioNodesEqual(a: AudioNode, b: AudioNode): boolean {
+  return (
+    a.name === b.name &&
+    a.triggerDistance === b.triggerDistance &&
+    a.volume === b.volume &&
+    a.loop === b.loop &&
+    a.description === b.description &&
+    JSON.stringify(a.attachedTo ?? null) === JSON.stringify(b.attachedTo ?? null)
+  );
+}
+
+function collabTasksEqual(a: CollabTask, b: CollabTask): boolean {
+  return (
+    a.type === b.type &&
+    a.title === b.title &&
+    a.description === b.description &&
+    a.assigneeRole === b.assigneeRole &&
+    a.status === b.status
+  );
+}
+
+function computeChangeStats(prev: RoomSnapshot | null, curr: RoomSnapshot): VersionChangeStats {
   if (!prev) {
     return {
       roomInfo: curr.name || curr.status || curr.description ? 1 : 0,
-      storyNodes: curr.storyLen,
-      gameplayMarkers: curr.markerLen,
-      audioNodes: curr.audioLen,
-      collabTasks: curr.taskLen,
+      storyNodes: curr.storyNodes.length,
+      gameplayMarkers: curr.gameplayMarkers.length,
+      audioNodes: curr.audioNodes.length,
+      collabTasks: curr.collabTasks?.length ?? 0,
     };
   }
   const roomInfoChanged =
     prev.name !== curr.name || prev.status !== curr.status || prev.description !== curr.description;
   return {
     roomInfo: roomInfoChanged ? 1 : 0,
-    storyNodes: Math.abs(curr.storyLen - prev.storyLen),
-    gameplayMarkers: Math.abs(curr.markerLen - prev.markerLen),
-    audioNodes: Math.abs(curr.audioLen - prev.audioLen),
-    collabTasks: Math.abs(curr.taskLen - prev.taskLen),
+    storyNodes: countArrayChanges(prev.storyNodes, curr.storyNodes, storyNodesEqual),
+    gameplayMarkers: countArrayChanges(prev.gameplayMarkers, curr.gameplayMarkers, markersEqual),
+    audioNodes: countArrayChanges(prev.audioNodes, curr.audioNodes, audioNodesEqual),
+    collabTasks: countArrayChanges(prev.collabTasks ?? [], curr.collabTasks ?? [], collabTasksEqual),
   };
 }
 
@@ -321,6 +389,19 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
             }
             return out;
           });
+
+          const newTarget = nextMarkers.find((m) => m.id === newLinked);
+          const prevOwnerId = newTarget?.linkedTo;
+          if (newLinked && prevOwnerId && prevOwnerId !== markerId) {
+            nextMarkers = nextMarkers.map((m) => {
+              if (m.id === prevOwnerId && m.linkedTo === newLinked) {
+                const { linkedTo: _r, ...rest } = m;
+                void _r;
+                return rest as typeof m;
+              }
+              return m;
+            });
+          }
         }
 
         return { gameplayMarkers: nextMarkers };
@@ -474,41 +555,25 @@ export const useBlueprintStore = create<BlueprintStore>((set, get) => {
       );
       const latest = sortedVersions[0];
 
-      const currSummary = {
+      const currSnapshot: RoomSnapshot = {
         name: room.name,
         status: room.status as RoomStatus,
         description: room.description,
-        storyLen: roomStory.length,
-        markerLen: roomMarkers.length,
-        audioLen: roomAudio.length,
-        taskLen: roomTasks.length,
+        storyNodes: JSON.parse(JSON.stringify(roomStory)),
+        gameplayMarkers: JSON.parse(JSON.stringify(roomMarkers)),
+        audioNodes: JSON.parse(JSON.stringify(roomAudio)),
+        collabTasks: JSON.parse(JSON.stringify(roomTasks)),
       };
-      const prevSummary = latest
-        ? {
-            name: latest.snapshot.name,
-            status: latest.snapshot.status,
-            description: latest.snapshot.description,
-            storyLen: latest.snapshot.storyNodes.length,
-            markerLen: latest.snapshot.gameplayMarkers.length,
-            audioLen: latest.snapshot.audioNodes.length,
-            taskLen: latest.snapshot.collabTasks?.length ?? 0,
-          }
-        : null;
-      const changeStats: VersionChangeStats = computeChangeStats(prevSummary, currSummary);
+      const changeStats: VersionChangeStats = computeChangeStats(
+        latest ? latest.snapshot : null,
+        currSnapshot
+      );
 
       const newVersion = {
         id: generateId('v'),
         roomId,
         versionNumber: nextNumber,
-        snapshot: {
-          name: room.name,
-          status: room.status as RoomStatus,
-          description: room.description,
-          storyNodes: JSON.parse(JSON.stringify(roomStory)),
-          gameplayMarkers: JSON.parse(JSON.stringify(roomMarkers)),
-          audioNodes: JSON.parse(JSON.stringify(roomAudio)),
-          collabTasks: JSON.parse(JSON.stringify(roomTasks)),
-        },
+        snapshot: currSnapshot,
         changeReason: reason,
         changeStats,
         author,

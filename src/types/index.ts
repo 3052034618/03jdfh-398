@@ -4,7 +4,7 @@ export type StoryTriggerType = 'enter' | 'investigate' | 'leave';
 
 export type GameplayMarkerType = 'door_lock' | 'key' | 'chase_trigger' | 'hiding_spot';
 
-export type ReviewTab = 'comments' | 'versions' | 'review';
+export type ReviewTab = 'comments' | 'collab' | 'versions' | 'review';
 
 export type DetailTab = 'story' | 'gameplay' | 'audio' | 'collab';
 

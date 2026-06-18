@@ -1,11 +1,13 @@
 import { useBlueprintStore } from '@/store/useBlueprintStore';
-import { MessageSquare, Clock, GitCompare, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { MessageSquare, Clock, GitCompare, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react';
 import Comments from './Comments';
 import VersionHistory from './VersionHistory';
 import VersionDiff from './VersionDiff';
+import CollabList from './CollabList';
 
 const tabs = [
   { key: 'comments', label: '团队评论', icon: <MessageSquare size={14} /> },
+  { key: 'collab', label: '协作任务', icon: <ClipboardList size={14} /> },
   { key: 'versions', label: '版本历史', icon: <Clock size={14} /> },
   { key: 'review', label: '版本对比', icon: <GitCompare size={14} /> },
 ] as const;
@@ -67,6 +69,7 @@ const ReviewPanel = () => {
 
       <div className="flex-1 p-3 overflow-hidden">
         {reviewTab === 'comments' && <Comments roomId={selectedRoomId} />}
+        {reviewTab === 'collab' && <CollabList roomId={selectedRoomId} />}
         {reviewTab === 'versions' && <VersionHistory roomId={selectedRoomId} />}
         {reviewTab === 'review' && <VersionDiff roomId={selectedRoomId} />}
       </div>

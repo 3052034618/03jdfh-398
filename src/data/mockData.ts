@@ -218,6 +218,7 @@ export const mockGameplayMarkers: GameplayMarker[] = [
     type: 'door_lock',
     name: '厨房门锁',
     description: '需要铜制钥匙开启。',
+    linkedTo: 'gp-2',
   },
   {
     id: 'gp-5',
