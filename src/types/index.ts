@@ -8,6 +8,8 @@ export type ReviewTab = 'comments' | 'versions' | 'review';
 
 export type DetailTab = 'story' | 'gameplay' | 'audio';
 
+export type AudioAttachTarget = { type: 'story' | 'gameplay'; id: string } | null;
+
 export interface Floor {
   id: string;
   name: string;
@@ -58,6 +60,7 @@ export interface AudioNode {
   volume: number;
   loop: boolean;
   description: string;
+  attachedTo?: AudioAttachTarget;
 }
 
 export interface Comment {
@@ -111,6 +114,9 @@ export interface BlueprintState {
   reviewTab: ReviewTab;
   reviewPanelOpen: boolean;
   compareVersionIds: [string, string] | null;
+  connectingFromRoomId: string | null;
+  showAddFloorModal: boolean;
+  showAddRoomModal: boolean;
 }
 
 export interface BlueprintActions {
@@ -122,19 +128,37 @@ export interface BlueprintActions {
   setReviewTab: (tab: ReviewTab) => void;
   toggleReviewPanel: () => void;
   setReviewPanelOpen: (open: boolean) => void;
+
+  addFloor: (name: string, floorLevel: number) => string;
+  addRoom: (room: Omit<Room, 'id' | 'connections'>) => void;
+  removeRoom: (roomId: string) => void;
+
+  addConnection: (roomAId: string, roomBId: string) => void;
+  removeConnection: (roomAId: string, roomBId: string) => void;
+  setConnectingFrom: (roomId: string | null) => void;
+
   addStoryNode: (roomId: string, node: Omit<StoryNode, 'id' | 'roomId'>) => void;
   updateStoryNode: (nodeId: string, updates: Partial<StoryNode>) => void;
   removeStoryNode: (nodeId: string) => void;
+
   addGameplayMarker: (roomId: string, marker: Omit<GameplayMarker, 'id' | 'roomId'>) => void;
   updateGameplayMarker: (markerId: string, updates: Partial<GameplayMarker>) => void;
   removeGameplayMarker: (markerId: string) => void;
+
   addAudioNode: (roomId: string, node: Omit<AudioNode, 'id' | 'roomId'>) => void;
   updateAudioNode: (nodeId: string, updates: Partial<AudioNode>) => void;
   removeAudioNode: (nodeId: string) => void;
+
   addComment: (roomId: string, comment: Omit<Comment, 'id' | 'roomId' | 'timestamp'>) => void;
+
   createVersion: (roomId: string, reason: string, author: string) => void;
   setCompareVersionIds: (ids: [string, string] | null) => void;
   saveRoomSnapshot: (roomId: string) => void;
+
+  setShowAddFloorModal: (show: boolean) => void;
+  setShowAddRoomModal: (show: boolean) => void;
+
+  hydrateFromStorage: () => void;
 }
 
 export type BlueprintStore = BlueprintState & BlueprintActions;

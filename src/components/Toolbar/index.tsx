@@ -9,10 +9,11 @@ import {
   ZoomOut,
   Plus,
   Layers,
-  MessageSquare,
-  History,
   ChevronDown,
   ChevronUp,
+  Link2,
+  Link2Off,
+  SquarePlus,
 } from 'lucide-react';
 
 const Toolbar = () => {
@@ -24,7 +25,13 @@ const Toolbar = () => {
     setZoom,
     reviewPanelOpen,
     toggleReviewPanel,
+    connectingFromRoomId,
+    setConnectingFrom,
+    setShowAddFloorModal,
+    setShowAddRoomModal,
   } = useBlueprintStore();
+
+  const isConnectMode = connectingFromRoomId !== null;
 
   return (
     <div className="w-16 bg-horror-surface border-r border-horror-border flex flex-col items-center py-4 gap-1 shrink-0">
@@ -34,7 +41,7 @@ const Toolbar = () => {
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-0.5 mb-4">
+      <div className="flex flex-col items-center gap-0.5 mb-3">
         <button
           onClick={() => setZoom(Math.min(2, zoom + 0.1))}
           className="w-10 h-10 flex items-center justify-center rounded-lg text-horror-muted hover:text-white hover:bg-horror-surface2 transition-all"
@@ -54,9 +61,9 @@ const Toolbar = () => {
         </button>
       </div>
 
-      <div className="w-8 h-px bg-horror-border my-2" />
+      <div className="w-8 h-px bg-horror-border my-1" />
 
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1 mb-2">
         {floors.map((floor) => (
           <button
             key={floor.id}
@@ -71,18 +78,45 @@ const Toolbar = () => {
             title={floor.name}
           >
             <Layers size={16} />
-            <span className="text-[9px] font-medium mt-0.5">{floor.floorLevel}F</span>
+            <span className="text-[9px] font-medium mt-0.5">
+              {floor.floorLevel === -1 ? 'B1' : `${floor.floorLevel}F`}
+            </span>
           </button>
         ))}
+        <button
+          onClick={() => setShowAddFloorModal(true)}
+          className="w-10 h-10 flex flex-col items-center justify-center rounded-lg transition-all text-horror-muted hover:text-horror-accent hover:bg-horror-accent/10 border border-dashed border-horror-border hover:border-horror-accent/40"
+          title="新增楼层"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
-      <div className="w-8 h-px bg-horror-border my-2" />
+      <div className="w-8 h-px bg-horror-border my-1" />
 
       <button
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-horror-muted hover:text-white hover:bg-horror-surface2 transition-all"
-        title="添加区域"
+        onClick={() => setShowAddRoomModal(true)}
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-horror-muted hover:text-white hover:bg-horror-surface2 transition-all group"
+        title="新增区域"
       >
-        <Plus size={18} />
+        <SquarePlus size={18} className="group-hover:text-horror-accent transition-colors" />
+      </button>
+
+      <button
+        onClick={() => setConnectingFrom(isConnectMode ? null : 'pending-select')}
+        className={`
+          w-10 h-10 flex items-center justify-center rounded-lg transition-all relative
+          ${isConnectMode
+            ? 'bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/40'
+            : 'text-horror-muted hover:text-white hover:bg-horror-surface2'
+          }
+        `}
+        title={isConnectMode ? '取消连线模式' : '连线模式：选择两个房间创建通路'}
+      >
+        {isConnectMode ? <Link2Off size={18} /> : <Link2 size={18} />}
+        {isConnectMode && (
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+        )}
       </button>
 
       <div className="flex-1" />
@@ -98,7 +132,7 @@ const Toolbar = () => {
         {reviewPanelOpen ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
       </button>
 
-      <div className="w-8 h-px bg-horror-border my-2" />
+      <div className="w-8 h-px bg-horror-border my-1" />
 
       <div className="flex flex-col items-center gap-2 px-1 w-full">
         <div className="flex items-center gap-1.5 w-full">

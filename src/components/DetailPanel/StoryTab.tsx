@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import type { StoryNode, StoryTriggerType } from '@/types';
+import type { StoryNode, StoryTriggerType, AudioNode } from '@/types';
 import { useBlueprintStore } from '@/store/useBlueprintStore';
-import { Plus, Trash2, Edit2, Check, X, LogIn, Search, LogOut, GitBranch } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, LogIn, Search, LogOut, GitBranch, Volume2 } from 'lucide-react';
 
 interface StoryTabProps {
   roomId: string;
@@ -14,7 +14,7 @@ const triggerConfig: Record<StoryTriggerType, { label: string; icon: React.React
 };
 
 const StoryTab = ({ roomId }: StoryTabProps) => {
-  const { storyNodes, addStoryNode, updateStoryNode, removeStoryNode } = useBlueprintStore();
+  const { storyNodes, audioNodes, addStoryNode, updateStoryNode, removeStoryNode } = useBlueprintStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -22,6 +22,9 @@ const StoryTab = ({ roomId }: StoryTabProps) => {
   const [newContent, setNewContent] = useState('');
 
   const roomStories = storyNodes.filter((n) => n.roomId === roomId);
+
+  const attachedAudiosFor = (nodeId: string): AudioNode[] =>
+    audioNodes.filter((a) => a.attachedTo?.type === 'story' && a.attachedTo.id === nodeId);
 
   const startEdit = (node: StoryNode) => {
     setEditingId(node.id);
@@ -55,9 +58,9 @@ const StoryTab = ({ roomId }: StoryTabProps) => {
 
       {isAdding && (
         <div className="horror-card p-3 space-y-2 animate-fade-in">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-horror-muted">触发时机:</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {(Object.keys(triggerConfig) as StoryTriggerType[]).map((t) => (
                 <button
                   key={t}
@@ -94,6 +97,7 @@ const StoryTab = ({ roomId }: StoryTabProps) => {
       {roomStories.map((node) => {
         const cfg = triggerConfig[node.triggerType];
         const isEditing = editingId === node.id;
+        const attached = attachedAudiosFor(node.id);
 
         return (
           <div key={node.id} className="horror-card p-3 animate-fade-in">
@@ -155,6 +159,27 @@ const StoryTab = ({ roomId }: StoryTabProps) => {
                     <p className="text-xs text-horror-muted leading-relaxed">{branch.content}</p>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {attached.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-horror-border">
+                <div className="text-[10px] text-purple-400 flex items-center gap-1 mb-1.5">
+                  <Volume2 size={10} /> 挂载音效 ({attached.length})
+                </div>
+                <div className="space-y-1.5">
+                  {attached.map((a) => (
+                    <div key={a.id} className="flex items-start gap-2 bg-purple-500/5 border border-purple-500/20 rounded px-2 py-1.5">
+                      <Volume2 size={11} className="text-purple-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-white font-medium truncate">{a.name}</div>
+                        <div className="text-[10px] text-horror-muted">
+                          触发距离 {a.triggerDistance}m · 音量 {Math.round(a.volume * 100)}%{a.loop ? ' · 循环' : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

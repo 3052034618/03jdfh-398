@@ -1,7 +1,10 @@
 import { useBlueprintStore } from '@/store/useBlueprintStore';
 import { useMemo, useState } from 'react';
-import { BookOpen, Gamepad2, Volume2, Edit2, Check, X, Save } from 'lucide-react';
-import type { RoomStatus } from '@/types';
+import {
+  BookOpen, Gamepad2, Volume2, Edit2, Check, X, Save,
+  Trash2, AlertTriangle, Key, Lock, Link2, Map,
+} from 'lucide-react';
+import type { RoomStatus, GameplayMarker } from '@/types';
 import StoryTab from './StoryTab';
 import GameplayTab from './GameplayTab';
 import AudioTab from './AudioTab';
@@ -22,11 +25,14 @@ const tabs = [
 const DetailPanel = () => {
   const {
     rooms,
+    gameplayMarkers,
     selectedRoomId,
     detailTab,
     setDetailTab,
     updateRoom,
     createVersion,
+    removeRoom,
+    selectRoom,
   } = useBlueprintStore();
 
   const [editingName, setEditingName] = useState(false);
@@ -35,11 +41,30 @@ const DetailPanel = () => {
   const [editDesc, setEditDesc] = useState('');
   const [versionReason, setVersionReason] = useState('');
   const [showVersionInput, setShowVersionInput] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const room = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId),
     [rooms, selectedRoomId]
   );
+
+  const { puzzleLinks, connectedRoomNames } = useMemo(() => {
+    if (!room) return { puzzleLinks: [] as Array<{ marker: GameplayMarker; target: GameplayMarker; targetRoomName: string }>, connectedRoomNames: [] as string[] };
+    const roomMarkers = gameplayMarkers.filter((m) => m.roomId === room.id && (m.type === 'key' || m.type === 'door_lock'));
+    const links = roomMarkers
+      .filter((m) => m.linkedTo)
+      .map((m) => {
+        const target = gameplayMarkers.find((g) => g.id === m.linkedTo);
+        if (!target) return null;
+        const targetRoom = rooms.find((r) => r.id === target.roomId);
+        return { marker: m, target, targetRoomName: targetRoom?.name || '未知房间' };
+      })
+      .filter(Boolean) as Array<{ marker: GameplayMarker; target: GameplayMarker; targetRoomName: string }>;
+    const connNames = room.connections
+      .map((cid) => rooms.find((r) => r.id === cid)?.name)
+      .filter(Boolean) as string[];
+    return { puzzleLinks: links, connectedRoomNames: connNames };
+  }, [room, gameplayMarkers, rooms]);
 
   const handleSaveName = () => {
     if (!room || !editName.trim()) return;
@@ -60,6 +85,13 @@ const DetailPanel = () => {
     setShowVersionInput(false);
   };
 
+  const handleConfirmDelete = () => {
+    if (!room) return;
+    removeRoom(room.id);
+    selectRoom(null);
+    setConfirmingDelete(false);
+  };
+
   if (!room) {
     return (
       <div className="w-80 bg-horror-surface border-l border-horror-border flex flex-col items-center justify-center p-6 shrink-0">
@@ -78,7 +110,7 @@ const DetailPanel = () => {
   return (
     <div className="w-80 bg-horror-surface border-l border-horror-border flex flex-col shrink-0">
       <div className="p-4 border-b border-horror-border">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-start justify-between mb-2 gap-2">
           {editingName ? (
             <div className="flex items-center gap-1 flex-1">
               <input
@@ -96,18 +128,54 @@ const DetailPanel = () => {
             </div>
           ) : (
             <>
-              <h2 className="font-cinzel text-lg font-semibold text-white tracking-wide">
+              <h2 className="font-cinzel text-lg font-semibold text-white tracking-wide leading-tight">
                 {room.name}
               </h2>
-              <button
-                onClick={() => { setEditingName(true); setEditName(room.name); }}
-                className="p-1 text-horror-muted hover:text-white hover:bg-horror-surface2 rounded transition-colors"
-              >
-                <Edit2 size={14} />
-              </button>
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  onClick={() => { setEditingName(true); setEditName(room.name); }}
+                  className="p-1 text-horror-muted hover:text-white hover:bg-horror-surface2 rounded transition-colors"
+                  title="重命名"
+                >
+                  <Edit2 size={14} />
+                </button>
+                {confirmingDelete ? (
+                  <div className="flex items-center gap-0.5 animate-fade-in">
+                    <button
+                      onClick={handleConfirmDelete}
+                      className="p-1 text-red-400 bg-red-500/10 rounded hover:bg-red-500/20 transition-colors"
+                      title="确认删除"
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(false)}
+                      className="p-1 text-horror-muted bg-horror-surface2 rounded hover:bg-horror-border transition-colors"
+                      title="取消"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingDelete(true)}
+                    className="p-1 text-horror-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                    title="删除房间"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>
+
+        {confirmingDelete && (
+          <div className="mb-3 text-[11px] text-red-400 bg-red-500/10 border border-red-500/30 rounded px-2 py-1.5 flex items-start gap-1.5 animate-fade-in">
+            <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+            <span>将删除此房间的全部节点、标记、音效、评论和历史版本，且无法恢复。</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs text-horror-muted">状态:</span>
@@ -121,6 +189,61 @@ const DetailPanel = () => {
             ))}
           </select>
         </div>
+
+        {(connectedRoomNames.length > 0 || puzzleLinks.length > 0) && (
+          <div className="mb-3 space-y-1.5 border-t border-horror-border pt-3">
+            {connectedRoomNames.length > 0 && (
+              <div className="text-[11px] flex items-start gap-1.5 text-horror-muted">
+                <Map size={11} className="text-cyan-400 shrink-0 mt-0.5" />
+                <span>
+                  连通 <span className="text-cyan-300 font-medium">{connectedRoomNames.length}</span> 区域：
+                  {connectedRoomNames.map((n, i) => (
+                    <span key={n}>
+                      <span className="text-white">{n}</span>
+                      {i < connectedRoomNames.length - 1 && '、'}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+            {puzzleLinks.length > 0 && (
+              <div className="text-[11px] flex flex-col gap-1">
+                <div className="flex items-start gap-1.5 text-horror-muted">
+                  <Key size={11} className="text-yellow-400 shrink-0 mt-0.5" />
+                  <span>解谜链路 <span className="text-yellow-300 font-medium">({puzzleLinks.length})</span>：</span>
+                </div>
+                <div className="pl-4 space-y-1">
+                  {puzzleLinks.map(({ marker, target, targetRoomName }) => (
+                    <div
+                      key={marker.id + '-' + target.id}
+                      className="flex items-center gap-1 text-[11px] text-horror-text bg-horror-surface2/60 rounded px-1.5 py-1 flex-wrap"
+                    >
+                      {marker.type === 'key' ? (
+                        <>
+                          <Key size={10} className="text-yellow-400 shrink-0" />
+                          <span className="text-yellow-300">{marker.name}</span>
+                          <Link2 size={9} className="text-cyan-400 shrink-0" />
+                          <Lock size={10} className="text-red-400 shrink-0" />
+                          <span className="text-red-300">{target.name}</span>
+                          <span className="text-horror-muted text-[10px]">（{targetRoomName}）</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={10} className="text-red-400 shrink-0" />
+                          <span className="text-red-300">{marker.name}</span>
+                          <Link2 size={9} className="text-cyan-400 shrink-0" />
+                          <Key size={10} className="text-yellow-400 shrink-0" />
+                          <span className="text-yellow-300">{target.name}</span>
+                          <span className="text-horror-muted text-[10px]">（{targetRoomName}）</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           {editingDesc ? (
