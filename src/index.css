@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    color: #E4E4E7;
+    background-color: #0F0F12;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1A1A1F;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #3F3F46;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525B;
+  }
+}
+
+@layer components {
+  .horror-input {
+    @apply w-full bg-horror-surface2 border border-horror-border rounded px-3 py-2
+           text-horror-text placeholder-horror-muted
+           focus:outline-none focus:border-horror-accent focus:ring-1 focus:ring-horror-accent
+           transition-all duration-200;
+  }
+
+  .horror-textarea {
+    @apply w-full bg-horror-surface2 border border-horror-border rounded px-3 py-2
+           text-horror-text placeholder-horror-muted resize-none
+           focus:outline-none focus:border-horror-accent focus:ring-1 focus:ring-horror-accent
+           transition-all duration-200;
+  }
+
+  .horror-btn {
+    @apply px-4 py-2 border border-horror-border rounded bg-horror-surface2
+           text-horror-text text-sm font-medium
+           hover:border-horror-accent hover:text-white hover:bg-horror-surface
+           transition-all duration-200 cursor-pointer select-none;
+  }
+
+  .horror-btn-primary {
+    @apply px-4 py-2 border border-horror-accent rounded bg-horror-accent
+           text-white text-sm font-medium
+           hover:bg-horror-accent2 hover:border-horror-accent2
+           transition-all duration-200 cursor-pointer select-none;
+  }
+
+  .horror-btn-ghost {
+    @apply px-3 py-1.5 text-horror-muted text-sm
+           hover:text-horror-text hover:bg-horror-surface2 rounded
+           transition-all duration-200 cursor-pointer select-none;
+  }
+
+  .horror-card {
+    @apply bg-horror-surface border border-horror-border rounded-lg;
+  }
+
+  .horror-tab {
+    @apply px-4 py-2 text-sm text-horror-muted cursor-pointer border-b-2 border-transparent
+           hover:text-horror-text transition-all duration-200;
+  }
+
+  .horror-tab-active {
+    @apply text-white border-horror-accent;
+  }
+
+  .status-locked {
+    @apply bg-gradient-to-br from-horror-locked/60 to-horror-locked/30 border-horror-accent;
+  }
+
+  .status-explorable {
+    @apply bg-gradient-to-br from-horror-explorable/60 to-horror-explorable/30 border-green-800;
+  }
+
+  .status-secondrun {
+    @apply bg-gradient-to-br from-horror-secondrun/60 to-horror-secondrun/30 border-purple-800;
+  }
+
+  .status-normal {
+    @apply bg-gradient-to-br from-horror-surface2/80 to-horror-surface/60 border-horror-border;
+  }
+}
+
+@layer utilities {
+  .text-shadow-glow {
+    text-shadow: 0 0 8px rgba(139, 26, 26, 0.6);
+  }
+
+  .box-shadow-glow {
+    box-shadow: 0 0 12px rgba(139, 26, 26, 0.3);
+  }
+
+  .burned-edge {
+    box-shadow: 
+      inset 0 0 20px rgba(0, 0, 0, 0.5),
+      inset 0 0 40px rgba(139, 26, 26, 0.1);
+  }
+
+  .grid-overlay {
+    background-size: 40px 40px;
+  }
+}
